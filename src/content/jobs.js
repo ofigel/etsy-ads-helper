@@ -110,8 +110,25 @@
 
   // ---- page metadata extraction ----
 
+  const DASHBOARD_CHROME_RE = /^(listing stats|shop manager( menu)?|etsy ads|advertising|get help)$/i;
+
+  /**
+   * The listing title on the real page is a link to the listing (with an
+   * external-link icon), not the page h1 (which is dashboard chrome like
+   * "Shop manager menu"). Prefer the longest /listing/ anchor text.
+   */
+  function readListingTitle() {
+    const anchors = [...document.querySelectorAll('a[href*="/listing/"]')]
+      .map((a) => (a.textContent || "").replace(/\s+/g, " ").trim())
+      .filter((t) => t.length >= 15 && !DASHBOARD_CHROME_RE.test(t));
+    if (anchors.length) return anchors.sort((a, b) => b.length - a.length)[0];
+    const headings = [...document.querySelectorAll("h1, h2, h3")]
+      .map((el) => (el.textContent || "").replace(/\s+/g, " ").trim())
+      .filter((t) => t.length >= 15 && !DASHBOARD_CHROME_RE.test(t));
+    return headings.length ? headings.sort((a, b) => b.length - a.length)[0] : null;
+  }
+
   function readListingMeta(listingId) {
-    const titleHit = domSelectors.resolve("listingTitle");
     const thumbHit = domSelectors.resolve("listingThumb");
     let dateRange = null;
     const drCandidate = [...document.querySelectorAll("button, span")].find((el) =>
@@ -121,7 +138,7 @@
     if (drCandidate) dateRange = drCandidate.textContent.trim();
     return {
       listing_id: listingId,
-      listing_title: titleHit ? titleHit.el.textContent.trim() : null,
+      listing_title: readListingTitle(),
       listing_url: location.origin + location.pathname,
       image_url: thumbHit ? thumbHit.el.src : null,
       date_range_label: dateRange,
@@ -245,10 +262,33 @@
       );
 
       // Sort by Spend descending when collecting only spend > 0 keywords so
-      // the early-stop rule below is sound.
+      // the early-stop rule below is sound. Sorting is an optimization:
+      // when Etsy's header markup defeats it, fall back to a full crawl
+      // (still filtering spend > 0) instead of failing the export.
+      let sortOk = false;
       if (settings.only_spend_gt_zero) {
-        table = await paginator.sortBySpendDesc(colMap, settings.pagination_settle_timeout_ms);
+        try {
+          table = await paginator.sortBySpendDesc(colMap, settings.pagination_settle_timeout_ms);
+          sortOk = true;
+        } catch (e) {
+          await logger.log(
+            {
+              job_id: snapshot.job.job_id,
+              listing_id: listingId,
+              level: "warn",
+              event: "SORT_FAILED",
+              detail: { message: e.message, fallback: "full-crawl" },
+            },
+            settings.log_max_entries
+          );
+          emit({
+            type: "export",
+            phase: "notice",
+            message: "Could not sort by Spend — crawling all pages instead (slower, same result).",
+          });
+        }
       }
+      snapshot.sort_fallback = settings.only_spend_gt_zero && !sortOk;
       table = await paginator.gotoFirstPage(settings.pagination_settle_timeout_ms);
 
       // Fast-forward when resuming.
@@ -290,7 +330,8 @@
         let pageRecords = records;
         if (settings.only_spend_gt_zero) {
           pageRecords = records.filter((r) => r.spend > 0);
-          if (pageRecords.length === 0 && records.length > 0) {
+          // Early stop is only sound when the desc sort actually applied.
+          if (sortOk && pageRecords.length === 0 && records.length > 0) {
             // Sorted desc by spend: first all-zero page means we're done.
             stoppedEarly = true;
             snapshot.stopped_early_at_page = page;

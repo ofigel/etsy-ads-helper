@@ -181,7 +181,11 @@
     return currentTable(doc);
   }
 
-  /** First-row vs last-row spend comparison for sort verification. */
+  /**
+   * First-row vs last-row spend comparison for sort verification.
+   * "indeterminate" = every row on the page has the same spend (usually all
+   * zeros), which proves nothing about the sort order.
+   */
   function spendOrderOnPage(table, colMap) {
     const rows = domSelectors.bodyRowsOf(table);
     if (rows.length < 2) return "single";
@@ -191,41 +195,64 @@
       if (idx == null || idx >= cells.length) return 0;
       return normalize.parseMoney(cells[idx].textContent);
     };
-    const first = spendOf(rows[0]);
-    const last = spendOf(rows[rows.length - 1]);
+    const spends = rows.map(spendOf);
+    const first = spends[0];
+    const last = spends[spends.length - 1];
+    if (spends.every((s) => s === first)) return "indeterminate";
     if (first > last) return "desc";
     if (first < last) return "asc";
-    return "flat";
+    return "indeterminate";
+  }
+
+  function isSpendSortedDesc(table, colMap) {
+    const aria = domSelectors.readSpendSortState(table);
+    if (aria === "desc") return true;
+    if (aria === "asc") return false;
+    const order = spendOrderOnPage(table, colMap);
+    if (order === "desc" || order === "single") return true;
+    return false;
   }
 
   /**
-   * Sort the table by Spend descending by clicking the Spend header (max two
-   * clicks: many tables toggle asc → desc). Verifies via row comparison
-   * and/or aria-sort. Rejects {code:"SORT_FAILED"} when unverifiable.
+   * Sort the table by Spend descending by clicking the Spend header.
+   * Tries each clickable candidate inside the header (button/link/role=
+   * button/focusable span/the cell itself) until one provokes a change,
+   * clicking up to twice per candidate (asc → desc toggling). Verified via
+   * aria-sort first, row comparison second.
+   * Rejects {code:"SORT_FAILED"} when no candidate produces a verified
+   * descending order — callers should fall back to a full crawl.
    */
   async function sortBySpendDesc(colMap, settleTimeoutMs, doc) {
     let table = currentTable(doc);
-    if (spendOrderOnPage(table, colMap) === "desc") return table;
+    if (isSpendSortedDesc(table, colMap)) return table;
 
-    for (let attempt = 0; attempt < 2; attempt++) {
-      table = currentTable(doc);
-      const control = domSelectors.findSpendSortControl(table);
-      if (!control) {
-        const err = new Error("SORT_FAILED: Spend header sort control not found");
-        err.code = "SORT_FAILED";
-        throw err;
-      }
-      const beforeHash = tableExtractor.pageContentHash(table);
-      userLikeClick(control);
-      try {
-        table = await waitForContentChange(beforeHash, settleTimeoutMs, doc);
-      } catch (e) {
-        // Content may legitimately not change (e.g. already sorted) — re-check below.
+    const candidateCount = Math.max(1, domSelectors.findSpendSortControls(table).length);
+    for (let ci = 0; ci < candidateCount; ci++) {
+      let provoked = false;
+      for (let clickNo = 0; clickNo < 2; clickNo++) {
         table = currentTable(doc);
+        // Re-resolve fresh on every click — React re-renders the header.
+        const controls = domSelectors.findSpendSortControls(table);
+        const control = controls[Math.min(ci, controls.length - 1)];
+        if (!control) break;
+
+        const beforeHash = tableExtractor.pageContentHash(table);
+        const beforeAria = domSelectors.readSpendSortState(table);
+        userLikeClick(control);
+        try {
+          table = await waitForContentChange(beforeHash, settleTimeoutMs, doc);
+          provoked = true;
+        } catch (e) {
+          table = currentTable(doc);
+          // Content unchanged, but an aria-sort flip still proves the click landed.
+          if (domSelectors.readSpendSortState(table) !== beforeAria) provoked = true;
+        }
+        if (isSpendSortedDesc(table, colMap)) return table;
+        await sleep(400);
       }
-      const order = spendOrderOnPage(table, colMap);
-      if (order === "desc" || order === "single") return table;
-      await sleep(400);
+      // This candidate provoked changes but never reached desc — clicking
+      // others would just keep toggling; bail out to the fallback path.
+      if (provoked) break;
     }
     const err = new Error("SORT_FAILED: could not establish Spend descending order");
     err.code = "SORT_FAILED";
@@ -244,5 +271,6 @@
     gotoFirstPage,
     sortBySpendDesc,
     spendOrderOnPage,
+    isSpendSortedDesc,
   };
 });

@@ -281,15 +281,61 @@
     return null;
   }
 
-  /** Sortable "Spend" header control inside the table header. */
-  function findSpendSortControl(table) {
+  /** The header cell ("th"/columnheader) of the Spend column, or null. */
+  function findSpendHeaderCell(table) {
     const cells = headerCellsOf(table);
     for (const c of cells) {
-      if (normalizeHeaderText(c.textContent).startsWith("spend")) {
-        return c.querySelector("button, a, [role='button']") || c;
-      }
+      if (normalizeHeaderText(c.textContent).startsWith("spend")) return c;
     }
     return null;
+  }
+
+  /**
+   * Clickable candidates for triggering Spend sort, most specific first.
+   * Real Etsy markup may wrap the label in a button, a link, a role=button
+   * element, a focusable span — or make the th itself clickable, so the
+   * caller tries them in order until one provokes a change.
+   */
+  function findSpendSortControls(table) {
+    const th = findSpendHeaderCell(table);
+    if (!th) return [];
+    const out = [];
+    for (const sel of ["button", "a", '[role="button"]', "[tabindex]", "span"]) {
+      const el = th.querySelector(sel);
+      if (el && !out.includes(el)) out.push(el);
+    }
+    out.push(th);
+    return out;
+  }
+
+  /**
+   * Current sort state of the Spend column: "asc" | "desc" | null (unknown).
+   * Signals, in priority order: aria-sort on the header cell or any
+   * descendant, then arrow glyphs in the header text.
+   */
+  function readSpendSortState(table) {
+    const th = findSpendHeaderCell(table);
+    if (!th) return null;
+    let aria = th.getAttribute("aria-sort");
+    if (!aria) {
+      const inner = th.querySelector("[aria-sort]");
+      if (inner) aria = inner.getAttribute("aria-sort");
+    }
+    if (aria) {
+      if (/^desc/i.test(aria)) return "desc";
+      if (/^asc/i.test(aria)) return "asc";
+      return null; // "none"
+    }
+    const txt = th.textContent || "";
+    if (/[▼▾↓]/.test(txt)) return "desc";
+    if (/[▲▴↑]/.test(txt)) return "asc";
+    return null;
+  }
+
+  /** Sortable "Spend" header control inside the table header. */
+  function findSpendSortControl(table) {
+    const controls = findSpendSortControls(table);
+    return controls.length ? controls[0] : null;
   }
 
   return {
@@ -306,6 +352,9 @@
     isDisabledControl,
     readPagesTotal,
     readCurrentPage,
+    findSpendHeaderCell,
+    findSpendSortControls,
+    readSpendSortState,
     findSpendSortControl,
   };
 });

@@ -101,7 +101,9 @@ label.field { display: block; margin-bottom: 8px; font-size: 12px; color: #555; 
     return "h" + hsh.toString(16) + ":" + norms.length;
   }
 
-  const DOM_DRIFT_CODES = new Set(["TABLE_NOT_FOUND", "COLUMN_MAPPING_FAILED", "SORT_FAILED", "PAGINATION_FAILED"]);
+  // SORT_FAILED is deliberately absent: a failed sort falls back to a full
+  // crawl and must not raise the "update the extension" banner.
+  const DOM_DRIFT_CODES = new Set(["TABLE_NOT_FOUND", "COLUMN_MAPPING_FAILED", "PAGINATION_FAILED"]);
 
   // ---- panel state ----
   let host = null;
@@ -174,6 +176,8 @@ label.field { display: block; margin-bottom: 8px; font-size: 12px; color: #555; 
     } else if (ev.phase === "keyword") {
       const pct = ev.total ? Math.round((ev.done / ev.total) * 100) : 0;
       state.progress = { label: `Disabling ${ev.done} of ${ev.total} (page ${ev.page})`, pct };
+    } else if (ev.phase === "notice") {
+      state.flash = { kind: "warn", text: ev.message };
     } else if (ev.phase === "done") {
       state.progress = null;
       state.flash = { kind: "ok", text: "Job finished." };
