@@ -37,7 +37,7 @@
   function mapColumns(table) {
     const headers = domSelectors
       .headerCellsOf(table)
-      .map((c) => domSelectors.normalizeHeaderText(c.textContent));
+      .map((c) => domSelectors.normalizeHeaderText(domSelectors.visibleText(c)));
     const colMap = {};
     const warnings = [];
     for (const [name, re] of Object.entries(COLUMN_PATTERNS)) {
@@ -67,7 +67,8 @@
 
   function cellText(cells, idx) {
     if (idx == null || idx >= cells.length) return null;
-    return (cells[idx].textContent || "").trim();
+    // visibleText skips Etsy's hidden per-cell labels ("Spend $1.42" → "$1.42")
+    return domSelectors.visibleText(cells[idx]);
   }
 
   /**

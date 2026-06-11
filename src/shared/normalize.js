@@ -73,30 +73,36 @@
     return String(listingId) + "::" + keyword_normalization(raw);
   }
 
-  /** Parse a money cell: "$513.52" → 513.52, "—"/"" → 0. */
+  /**
+   * Extract the first numeric token from arbitrary cell text. Tolerates
+   * label prefixes Etsy injects for responsive layouts/screen readers
+   * ("Spend $1.42"), currency prefixes ("US$ 1.42") and thousands commas.
+   * Returns null when the text contains no number at all.
+   */
+  function firstNumberIn(text) {
+    const s = String(text == null ? "" : text).replace(/,/g, "");
+    const m = s.match(/-?\d+(?:\.\d+)?/);
+    return m ? parseFloat(m[0]) : null;
+  }
+
+  /** Parse a money cell: "$513.52" / "Spend $513.52" → 513.52, "—"/"" → 0. */
   function parseMoney(text) {
-    const s = String(text == null ? "" : text).trim();
-    if (!s || s === "—" || s === "-") return 0;
-    const n = parseFloat(s.replace(/[$,\s]/g, ""));
-    return Number.isFinite(n) ? n : 0;
+    const n = firstNumberIn(text);
+    return n == null ? 0 : n;
   }
 
   /** Parse a percent cell: "2.8%" → 0.028, "—"/"" → 0. */
   function parsePercent(text) {
-    const s = String(text == null ? "" : text).trim();
-    if (!s || s === "—" || s === "-") return 0;
-    const n = parseFloat(s.replace(/[%,\s]/g, ""));
-    if (!Number.isFinite(n)) return 0;
+    const n = firstNumberIn(text);
+    if (n == null) return 0;
     // Avoid float artifacts: 2.8% → 0.028, not 0.027999999999999997
     return Math.round(n * 10000) / 1000000;
   }
 
   /** Parse a plain number cell: "1,234" → 1234. blankAsNull for ROAS. */
   function parseNumber(text, { blankAsNull = false } = {}) {
-    const s = String(text == null ? "" : text).trim();
-    if (!s || s === "—" || s === "-") return blankAsNull ? null : 0;
-    const n = parseFloat(s.replace(/[,\s]/g, ""));
-    if (!Number.isFinite(n)) return blankAsNull ? null : 0;
+    const n = firstNumberIn(text);
+    if (n == null) return blankAsNull ? null : 0;
     return n;
   }
 
@@ -104,6 +110,7 @@
     decodeHtmlEntities,
     keyword_normalization,
     keywordKey,
+    firstNumberIn,
     parseMoney,
     parsePercent,
     parseNumber,

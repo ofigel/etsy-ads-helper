@@ -29,7 +29,8 @@
       const cells = row.cells ? [...row.cells] : [...row.querySelectorAll('[role="cell"], td')];
       const idx = colMap.keyword;
       if (idx == null || idx >= cells.length) continue;
-      const raw = (cells[idx].textContent || "").trim();
+      // Same extraction as the exporter, so identities always agree.
+      const raw = domSelectors.visibleText(cells[idx]);
       if (normalize.keyword_normalization(raw) === keywordNormalized) {
         const toggle = domSelectors.findRowToggle(row);
         return {

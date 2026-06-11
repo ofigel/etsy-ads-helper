@@ -161,6 +161,48 @@
     return rows;
   }
 
+  /**
+   * Selector for elements whose text must be EXCLUDED when reading cell
+   * values: screen-reader-only labels and hidden helpers that Etsy injects
+   * into table cells for responsive layouts ("Spend $1.42").
+   */
+  const HIDDEN_TEXT_SELECTOR = [
+    '[aria-hidden="true"]',
+    "[hidden]",
+    ".wt-screen-reader-only",
+    ".wt-visually-hidden",
+    ".screen-reader-only",
+    ".visually-hidden",
+    ".sr-only",
+  ].join(", ");
+
+  /**
+   * textContent of an element minus hidden/screen-reader-only descendants.
+   * Falls back to full textContent when filtering leaves nothing (so a
+   * page that hides everything still yields data rather than blanks).
+   */
+  function visibleText(el) {
+    if (!el) return "";
+    let out = "";
+    const walk = (node) => {
+      if (node.nodeType === 3) {
+        out += node.nodeValue;
+        return;
+      }
+      if (node.nodeType !== 1) return;
+      try {
+        if (node.matches && node.matches(HIDDEN_TEXT_SELECTOR)) return;
+      } catch (e) {
+        /* matches() unavailable — keep the node */
+      }
+      for (const child of node.childNodes) walk(child);
+    };
+    walk(el);
+    out = out.replace(/\s+/g, " ").trim();
+    if (!out) out = (el.textContent || "").replace(/\s+/g, " ").trim();
+    return out;
+  }
+
   // ---- Toggle controls (SPEC §10.4) ----
 
   /**
@@ -285,7 +327,7 @@
   function findSpendHeaderCell(table) {
     const cells = headerCellsOf(table);
     for (const c of cells) {
-      if (normalizeHeaderText(c.textContent).startsWith("spend")) return c;
+      if (normalizeHeaderText(visibleText(c)).startsWith("spend")) return c;
     }
     return null;
   }
@@ -342,6 +384,7 @@
     SELECTORS,
     resolve,
     normalizeHeaderText,
+    visibleText,
     findKeywordsTable,
     findExpectedKeywordCount,
     headerCellsOf,

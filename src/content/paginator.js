@@ -193,7 +193,7 @@
       const cells = tableExtractor.cellsOf(row);
       const idx = colMap.spend;
       if (idx == null || idx >= cells.length) return 0;
-      return normalize.parseMoney(cells[idx].textContent);
+      return normalize.parseMoney(domSelectors.visibleText(cells[idx]));
     };
     const spends = rows.map(spendOf);
     const first = spends[0];
