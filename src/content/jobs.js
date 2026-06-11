@@ -120,7 +120,12 @@
   function readListingTitle() {
     const anchors = [...document.querySelectorAll('a[href*="/listing/"]')]
       .map((a) => (a.textContent || "").replace(/\s+/g, " ").trim())
-      .filter((t) => t.length >= 15 && !DASHBOARD_CHROME_RE.test(t));
+      .filter(
+        (t) =>
+          t.length >= 15 &&
+          !DASHBOARD_CHROME_RE.test(t) &&
+          !/^related tags/i.test(t) // "Related tags for …" helper link, not the title
+      );
     if (anchors.length) return anchors.sort((a, b) => b.length - a.length)[0];
     const headings = [...document.querySelectorAll("h1, h2, h3")]
       .map((el) => (el.textContent || "").replace(/\s+/g, " ").trim())
@@ -344,7 +349,22 @@
         touch(snapshot.job);
         await sSet({ [snapKey]: snapshot }); // checkpoint BEFORE navigating (SPEC §22)
         await logger.log(
-          { job_id: snapshot.job.job_id, listing_id: listingId, event: "EXPORT_PAGE_DONE", page, detail: { collected: acc.size } },
+          {
+            job_id: snapshot.job.job_id,
+            listing_id: listingId,
+            event: "EXPORT_PAGE_DONE",
+            page,
+            detail: {
+              collected: acc.size,
+              rows_seen: records.length,
+              rows_kept: pageRecords.length,
+              // Parse-health sample: if spend_raw has digits but spend is 0,
+              // the Spend column mapping/parsing is broken on this markup.
+              sample: records[0]
+                ? { keyword: records[0].keyword_normalized, spend_raw: records[0].spend_raw, spend: records[0].spend }
+                : null,
+            },
+          },
           settings.log_max_entries
         );
         emit({ type: "export", phase: "page", page, pagesTotal, collected: acc.size });
@@ -656,6 +676,59 @@
   }
 
   /**
+   * Diagnostics bundle for selector-drift debugging: a truncated snapshot of
+   * the real table markup plus what the extension managed to parse from it.
+   * Contains no buyer/shop data beyond the visible keywords table.
+   */
+  function collectDiagnostics(listingId) {
+    const cap = (s, n) => (s && s.length > n ? s.slice(0, n) + "…[truncated]" : s);
+    const out = {
+      tool: storageKeys.TOOL_ID,
+      collected_at: new Date().toISOString(),
+      listing_id: listingId,
+      url_path: location.pathname,
+      expected_keyword_count: domSelectors.findExpectedKeywordCount(),
+      table_found: null,
+      header_html: null,
+      first_row_html: null,
+      parsed_sample: null,
+      column_map: null,
+      sort_state: null,
+      pagination_text: null,
+    };
+    const found = domSelectors.findKeywordsTable(document);
+    if (!found) {
+      out.table_found = false;
+      return out;
+    }
+    out.table_found = found.via;
+    const table = found.table;
+    const headerCells = domSelectors.headerCellsOf(table);
+    out.header_html = cap(headerCells.map((c) => c.outerHTML).join("\n"), 6000);
+    const rows = domSelectors.bodyRowsOf(table);
+    if (rows[0]) out.first_row_html = cap(rows[0].outerHTML, 6000);
+    try {
+      const { colMap, headers } = tableExtractor.mapColumns(table);
+      out.column_map = { colMap, headers };
+      const recs = tableExtractor.extractRows(table, colMap, listingId, 1);
+      out.parsed_sample = recs.slice(0, 3).map((r) => ({
+        keyword: r.keyword_normalized,
+        spend_raw: r.spend_raw,
+        spend: r.spend,
+        clicks: r.clicks,
+        views: r.views,
+        enabled: r.currently_enabled,
+      }));
+      out.sort_state = domSelectors.readSpendSortState(table);
+    } catch (e) {
+      out.column_map = { error: e.code || e.message };
+    }
+    const pagination = domSelectors.findPagination(table);
+    if (pagination) out.pagination_text = cap((pagination.container.textContent || "").trim(), 300);
+    return out;
+  }
+
+  /**
    * On injection: mark stale running jobs as paused so the panel can offer
    * Resume (SPEC §23).
    */
@@ -695,5 +768,6 @@
     recoverStaleJobs,
     readListingMeta,
     parseHumanNumber,
+    collectDiagnostics,
   };
 });

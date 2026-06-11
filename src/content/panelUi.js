@@ -180,7 +180,15 @@ label.field { display: block; margin-bottom: 8px; font-size: 12px; color: #555; 
       state.flash = { kind: "warn", text: ev.message };
     } else if (ev.phase === "done") {
       state.progress = null;
-      state.flash = { kind: "ok", text: "Job finished." };
+      if (ev.type === "export" && ev.collected === 0) {
+        state.flash = {
+          kind: "warn",
+          text:
+            "Export finished, but 0 keywords were collected. The Spend column may not be parsing on this page markup — press “Copy diagnostics” below and share it with the developer.",
+        };
+      } else {
+        state.flash = { kind: "ok", text: "Job finished." };
+      }
     } else if (ev.phase === "throttled") {
       state.progress = null;
       state.flash = { kind: "error", text: "Etsy may be rate-limiting. Wait a few minutes, then Resume." };
@@ -389,7 +397,20 @@ label.field { display: block; margin-bottom: 8px; font-size: 12px; color: #555; 
               "Copy CSV"
             )
           )
-        : null
+        : null,
+      h(
+        "button",
+        {
+          class: "btn secondary",
+          title: "Copies a snippet of the table markup + what the extension parsed from it — for debugging selector drift.",
+          onclick: async () => {
+            const diag = E.jobs.collectDiagnostics(state.listingId);
+            await navigator.clipboard.writeText(JSON.stringify(diag, null, 2));
+            setFlash("ok", "Diagnostics copied to clipboard — paste it to the developer.");
+          },
+        },
+        "Copy diagnostics"
+      )
     );
   }
 
