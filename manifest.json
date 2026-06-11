@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Etsy Ads Keyword Manager",
+  "version": "0.1.0",
+  "description": "Export, AI-review, and safely disable Etsy Ads targeted keywords.",
+  "permissions": ["storage", "downloads", "activeTab", "unlimitedStorage"],
+  "host_permissions": [
+    "https://www.etsy.com/your/shops/*",
+    "https://i.etsystatic.com/*"
+  ],
+  "background": {
+    "service_worker": "src/background/serviceWorker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.etsy.com/your/shops/me/advertising/listings/*"],
+      "js": [
+        "src/shared/normalize.js",
+        "src/shared/storageKeys.js",
+        "src/shared/classification.js",
+        "src/shared/schemas.js",
+        "src/shared/csv.js",
+        "src/shared/logger.js",
+        "src/shared/prompt.js",
+        "src/content/domSelectors.js",
+        "src/content/pageGuards.js",
+        "src/content/tableExtractor.js",
+        "src/content/paginator.js",
+        "src/content/toggleDriver.js",
+        "src/content/jobs.js",
+        "src/content/panelUi.js",
+        "src/content/contentScript.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "Etsy Ads Keyword Manager — toggle panel"
+  }
+}
