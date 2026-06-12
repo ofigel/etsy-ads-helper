@@ -27,8 +27,10 @@
       description: "Listing title heading near the top of the stats page",
     },
     listingThumb: {
-      primary: 'img[src*="i.etsystatic.com"]',
-      fallbacks: ["img"],
+      // The page also carries i.etsystatic.com SVG icons (site-assets) and
+      // the account avatar (iusa_*) — require a real listing photo (/il/ path).
+      primary: 'img[data-clg-id="WtImage"][src*="i.etsystatic.com"]',
+      fallbacks: ['img[src*="i.etsystatic.com"][src*="/il/"]'],
       description: "Product thumbnail image near the listing title",
     },
     dateRangeLabel: {
@@ -174,6 +176,10 @@
     ".screen-reader-only",
     ".visually-hidden",
     ".sr-only",
+    // Per-cell column label ("Targeted keyword", "Spend", …) shown only in
+    // the responsive layout; on desktop it is hidden by CSS. Confirmed in a
+    // real capture (June 2026): wt-table--responsive-md tables.
+    ".wt-table--responsive__title",
   ].join(", ");
 
   /**
@@ -201,6 +207,26 @@
     out = out.replace(/\s+/g, " ").trim();
     if (!out) out = (el.textContent || "").replace(/\s+/g, " ").trim();
     return out;
+  }
+
+  /**
+   * Keyword text from the first cell. Real markup wraps the keyword in a
+   * WtInlineToggle (truncation) component:
+   *   <div class="wt-content-toggle__body-wrapper"><p aria-hidden="false">{kw}</p></div>
+   * Prefer that node (avoids "more"/"less" expander captions); fall back to
+   * the filtered cell text.
+   */
+  function keywordCellText(cell) {
+    if (!cell) return "";
+    const p =
+      cell.querySelector('.wt-content-toggle__body-wrapper p[aria-hidden="false"]') ||
+      cell.querySelector(".wt-content-toggle__body-wrapper p") ||
+      cell.querySelector('p[id^="wt-content-toggle"]');
+    if (p) {
+      const t = (p.textContent || "").replace(/\s+/g, " ").trim();
+      if (t) return t;
+    }
+    return visibleText(cell);
   }
 
   // ---- Toggle controls (SPEC §10.4) ----
@@ -385,6 +411,7 @@
     resolve,
     normalizeHeaderText,
     visibleText,
+    keywordCellText,
     findKeywordsTable,
     findExpectedKeywordCount,
     headerCellsOf,

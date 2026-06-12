@@ -132,6 +132,16 @@
     return headings.length ? headings.sort((a, b) => b.length - a.length)[0] : null;
   }
 
+  /**
+   * Etsy listing photo URLs encode the size in the filename
+   * (…/il_75x75.123.jpg). Request a 1000x1000 variant for the AI — the CDN
+   * serves any standard size for the same id. il_fullxfull stays as is.
+   */
+  function upgradeEtsyImageUrl(url) {
+    if (!url) return null;
+    return url.replace(/\/il_\d+x\d+\./, "/il_1000x1000.");
+  }
+
   function readListingMeta(listingId) {
     const thumbHit = domSelectors.resolve("listingThumb");
     let dateRange = null;
@@ -144,7 +154,7 @@
       listing_id: listingId,
       listing_title: readListingTitle(),
       listing_url: location.origin + location.pathname,
-      image_url: thumbHit ? thumbHit.el.src : null,
+      image_url: thumbHit ? upgradeEtsyImageUrl(thumbHit.el.src) : null,
       date_range_label: dateRange,
       totals: readTotalsStrip(),
     };

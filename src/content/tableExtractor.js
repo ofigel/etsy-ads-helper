@@ -91,7 +91,8 @@
     const records = [];
     rows.forEach((row, rowIndex) => {
       const cells = cellsOf(row);
-      const rawKeyword = cleanKeywordText(cellText(cells, colMap.keyword));
+      const kwCell = colMap.keyword < cells.length ? cells[colMap.keyword] : null;
+      const rawKeyword = cleanKeywordText(domSelectors.keywordCellText(kwCell));
       if (!rawKeyword) return; // skeleton/placeholder row
 
       const toggle = domSelectors.findRowToggle(row);

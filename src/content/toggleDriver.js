@@ -32,7 +32,7 @@
       const idx = colMap.keyword;
       if (idx == null || idx >= cells.length) continue;
       // Same extraction + label cleanup as the exporter, so identities agree.
-      const raw = tableExtractor.cleanKeywordText(domSelectors.visibleText(cells[idx]));
+      const raw = tableExtractor.cleanKeywordText(domSelectors.keywordCellText(cells[idx]));
       if (normalize.keyword_normalization(raw) === keywordNormalized) {
         const toggle = domSelectors.findRowToggle(row);
         return {

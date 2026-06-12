@@ -37,6 +37,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 /** Fetch product image from Etsy CDN; null on any failure (SPEC §25). */
 async function fetchProductImage(imageUrl) {
   if (!imageUrl || !/^https:\/\/i\.etsystatic\.com\//.test(imageUrl)) return null;
+  // Site-asset icons/SVGs are not product photos — fall back to the URL file.
+  if (/site-assets|\.svg(\?|$)/.test(imageUrl)) return null;
   const controller = new AbortController();
   const killer = setTimeout(() => controller.abort(), IMAGE_FETCH_TIMEOUT_MS);
   try {
@@ -44,8 +46,10 @@ async function fetchProductImage(imageUrl) {
     if (!resp.ok) return null;
     const contentType = resp.headers.get("content-type") || "";
     const extMap = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
-    const ext = extMap[contentType.split(";")[0].trim()] || "jpg";
+    const ext = extMap[contentType.split(";")[0].trim()];
+    if (!ext) return null; // svg/html/unknown → not a usable product photo
     const bytes = new Uint8Array(await resp.arrayBuffer());
+    if (!bytes.length) return null;
     return { bytes, ext };
   } catch (e) {
     return null;
