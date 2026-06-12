@@ -83,3 +83,46 @@ test("even unfiltered label text in cells still parses via firstNumberIn", () =>
   assert.strictEqual(rows[0].clicks, 2);
   assert.strictEqual(rows[0].views, 15);
 });
+
+test("cleanKeywordText strips glued column-label prefix", () => {
+  assert.strictEqual(tableExtractor.cleanKeywordText("Targeted keywordjapan"), "japan");
+  assert.strictEqual(
+    tableExtractor.cleanKeywordText("Targeted keyword cat bite shirt"),
+    "cat bite shirt"
+  );
+  assert.strictEqual(tableExtractor.cleanKeywordText("cat lover gifts"), "cat lover gifts");
+  // Never strip down to nothing
+  assert.strictEqual(tableExtractor.cleanKeywordText("Targeted keyword"), "Targeted keyword");
+});
+
+test("extractRows cleans glued label even when the label is not hidden", () => {
+  const html = `<table>
+    <thead><tr><th>Targeted keyword</th><th>Spend</th><th>Clicks</th><th>Views</th><th>Relevant keyword</th></tr></thead>
+    <tbody><tr>
+      <td>Targeted keywordjapanese graphic tee</td><td>Spend$0.93</td><td>1</td><td>10</td>
+      <td><input type="checkbox" checked></td>
+    </tr></tbody>
+  </table>`;
+  const table = new JSDOM(html).window.document.querySelector("table");
+  const { colMap } = tableExtractor.mapColumns(table);
+  const rows = tableExtractor.extractRows(table, colMap, "4457419631", 1);
+  assert.strictEqual(rows[0].keyword_normalized, "japanese graphic tee");
+  assert.strictEqual(rows[0].key, "4457419631::japanese graphic tee");
+  assert.strictEqual(rows[0].spend, 0.93);
+});
+
+test("toggleDriver finds keywords despite glued labels", () => {
+  const toggleDriver = require("../src/content/toggleDriver.js");
+  const html = `<table>
+    <thead><tr><th>Targeted keyword</th><th>Spend</th><th>Clicks</th><th>Views</th><th>Relevant keyword</th></tr></thead>
+    <tbody><tr>
+      <td>Targeted keywordjapan</td><td>$0.77</td><td>1</td><td>112</td>
+      <td><input type="checkbox" checked></td>
+    </tr></tbody>
+  </table>`;
+  const table = new JSDOM(html).window.document.querySelector("table");
+  const { colMap } = tableExtractor.mapColumns(table);
+  const found = toggleDriver.findKeywordRow(table, colMap, "japan");
+  assert.ok(found);
+  assert.strictEqual(found.state, true);
+});

@@ -72,6 +72,17 @@
   }
 
   /**
+   * Etsy glues a (sometimes unfilterable) per-cell column label onto the
+   * keyword text: "Targeted keywordjapan" → "japan". Strip it only when
+   * something meaningful remains.
+   */
+  function cleanKeywordText(text) {
+    const s = String(text == null ? "" : text);
+    const stripped = s.replace(/^\s*targeted keyword:?\s*/i, "").trim();
+    return stripped ? stripped : s.trim();
+  }
+
+  /**
    * Parse all rows on the current page into KeywordRecord-shaped objects
    * (SPEC §15). pageIndex is 1-based, diagnostics only — never identity.
    */
@@ -80,7 +91,7 @@
     const records = [];
     rows.forEach((row, rowIndex) => {
       const cells = cellsOf(row);
-      const rawKeyword = cellText(cells, colMap.keyword);
+      const rawKeyword = cleanKeywordText(cellText(cells, colMap.keyword));
       if (!rawKeyword) return; // skeleton/placeholder row
 
       const toggle = domSelectors.findRowToggle(row);
@@ -159,5 +170,5 @@
     return rows.length + "::" + first + "::" + last;
   }
 
-  return { COLUMN_PATTERNS, mapColumns, extractRows, mergeRecords, pageContentHash, cellsOf };
+  return { COLUMN_PATTERNS, mapColumns, extractRows, mergeRecords, pageContentHash, cellsOf, cleanKeywordText };
 });

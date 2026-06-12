@@ -118,18 +118,17 @@
    * "Shop manager menu"). Prefer the longest /listing/ anchor text.
    */
   function readListingTitle() {
-    const anchors = [...document.querySelectorAll('a[href*="/listing/"]')]
-      .map((a) => (a.textContent || "").replace(/\s+/g, " ").trim())
-      .filter(
-        (t) =>
-          t.length >= 15 &&
-          !DASHBOARD_CHROME_RE.test(t) &&
-          !/^related tags/i.test(t) // "Related tags for …" helper link, not the title
-      );
+    // "Related tags for {title}" blocks carry the real title — keep them,
+    // but strip the prefix.
+    const cleanup = (t) => t.replace(/^related tags for\s+/i, "").trim();
+    const collect = (els) =>
+      [...els]
+        .map((el) => cleanup((el.textContent || "").replace(/\s+/g, " ").trim()))
+        .filter((t) => t.length >= 15 && !DASHBOARD_CHROME_RE.test(t));
+
+    const anchors = collect(document.querySelectorAll('a[href*="/listing/"]'));
     if (anchors.length) return anchors.sort((a, b) => b.length - a.length)[0];
-    const headings = [...document.querySelectorAll("h1, h2, h3")]
-      .map((el) => (el.textContent || "").replace(/\s+/g, " ").trim())
-      .filter((t) => t.length >= 15 && !DASHBOARD_CHROME_RE.test(t));
+    const headings = collect(document.querySelectorAll("h1, h2, h3"));
     return headings.length ? headings.sort((a, b) => b.length - a.length)[0] : null;
   }
 

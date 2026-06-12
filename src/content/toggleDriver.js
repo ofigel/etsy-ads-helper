@@ -9,14 +9,16 @@
     (root.EAKM && root.EAKM.paginator) ||
       (typeof require === "function" ? require("./paginator.js") : null),
     (root.EAKM && root.EAKM.normalize) ||
-      (typeof require === "function" ? require("../shared/normalize.js") : null)
+      (typeof require === "function" ? require("../shared/normalize.js") : null),
+    (root.EAKM && root.EAKM.tableExtractor) ||
+      (typeof require === "function" ? require("./tableExtractor.js") : null)
   );
   if (typeof module === "object" && typeof module.exports === "object") {
     module.exports = mod;
   }
   root.EAKM = root.EAKM || {};
   root.EAKM.toggleDriver = mod;
-})(globalThis, function (domSelectors, paginator, normalize) {
+})(globalThis, function (domSelectors, paginator, normalize, tableExtractor) {
   "use strict";
 
   /**
@@ -29,8 +31,8 @@
       const cells = row.cells ? [...row.cells] : [...row.querySelectorAll('[role="cell"], td')];
       const idx = colMap.keyword;
       if (idx == null || idx >= cells.length) continue;
-      // Same extraction as the exporter, so identities always agree.
-      const raw = domSelectors.visibleText(cells[idx]);
+      // Same extraction + label cleanup as the exporter, so identities agree.
+      const raw = tableExtractor.cleanKeywordText(domSelectors.visibleText(cells[idx]));
       if (normalize.keyword_normalization(raw) === keywordNormalized) {
         const toggle = domSelectors.findRowToggle(row);
         return {
