@@ -330,8 +330,10 @@ label.field { display: block; margin-bottom: 8px; font-size: 12px; color: #555; 
           checked: settings.only_spend_gt_zero,
           disabled: busy,
           onchange: async (ev) => {
+            // Read the event BEFORE any await — afterwards ev.target is gone.
+            const checked = ev.target.checked;
             const s = E.storageKeys.sanitizeSettings(await sGet(KEYS.settings));
-            s.only_spend_gt_zero = ev.target.checked;
+            s.only_spend_gt_zero = checked;
             await sSet({ [KEYS.settings]: s });
           },
         }),
@@ -890,8 +892,10 @@ label.field { display: block; margin-bottom: 8px; font-size: 12px; color: #555; 
             type: "number",
             value: settings[key],
             onchange: async (ev) => {
+              // Read the event BEFORE any await — afterwards ev.target is gone.
+              const value = Number(ev.target.value);
               const s = E.storageKeys.sanitizeSettings(await sGet(KEYS.settings));
-              s[key] = Number(ev.target.value);
+              s[key] = value;
               await sSet({ [KEYS.settings]: E.storageKeys.sanitizeSettings(s) });
               render(); // re-render shows clamped value
             },
