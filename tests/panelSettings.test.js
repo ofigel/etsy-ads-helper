@@ -99,3 +99,45 @@ test("checking it back persists true again", async () => {
   await settle();
   assert.strictEqual(chromeMock._store[storageKeys.KEYS.settings].only_spend_gt_zero, true);
 });
+
+test("paste-import flow creates an import session and opens Preview", async () => {
+  // Seed a snapshot the import will match against.
+  chromeMock._store["snapshot:123"] = {
+    schema_version: 1,
+    listing_id: "123",
+    listing_title: "Cat Biting Shirt",
+    exported_at: new Date().toISOString(),
+    complete: true,
+    keywords: [
+      { keyword_normalized: "cat bite shirt", key: "123::cat bite shirt", spend: 0.15, clicks: 1, views: 5, currently_enabled: true },
+      { keyword_normalized: "anime", key: "123::anime", spend: 0, clicks: 0, views: 8, currently_enabled: true },
+    ],
+  };
+  await panelUi.render();
+  await settle();
+  const importTabBtn = [...shadow().querySelectorAll(".tabs button")].find((b) => b.textContent === "Import");
+  importTabBtn.click();
+  await settle();
+
+  const box = shadow().querySelector("#aiPasteBox");
+  assert.ok(box, "paste box rendered");
+  box.value = '```json\n' + JSON.stringify({
+    schema_version: 1,
+    listing_id: "123",
+    results: [
+      { keyword: "cat bite shirt", classification: "KEEP" },
+      { keyword: "anime", classification: "DISABLE_BROAD", reason: "too broad" },
+    ],
+  }) + '\n```';
+  shadow().querySelector("#aiPasteImport").click();
+  await settle();
+
+  const session = chromeMock._store["import:123"];
+  assert.ok(session, "import session stored");
+  assert.strictEqual(session.match.matched.length, 2);
+  // "anime" is actionable but zero-spend → default-unchecked, so selection is empty;
+  // gate must be at least 'imported' (auto-switch to Preview may bump it to 'previewed').
+  assert.ok(["imported", "previewed"].includes(session.gate));
+  const activeTab = shadow().querySelector(".tabs button.active");
+  assert.strictEqual(activeTab.textContent, "Preview");
+});

@@ -13,7 +13,7 @@
   "use strict";
 
   const SCHEMA_VERSION = 1;
-  const TOOL_ID = "etsy-ads-keyword-manager/0.1.6";
+  const TOOL_ID = "etsy-ads-keyword-manager/0.1.7";
   const STALE_EXPORT_DAYS = 7;
 
   const KEYS = {

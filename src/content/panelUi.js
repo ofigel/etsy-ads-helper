@@ -14,17 +14,32 @@
   const KEYS = E.storageKeys.KEYS;
   const TABS = ["Export", "Import", "Preview", "Run", "Log", "Settings"];
 
+  // Cat-biting-hand icon (Etsy icon set), rendered in brand orange.
+  const ICON_SVG =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">' +
+    '<path fill-rule="evenodd" clip-rule="evenodd" d="M20.5 3A.5.5 0 0 1 21 3.5V20.5A.5.5 0 0 1 20.5 21H19.268A.5.5 0 0 1 18.852 20.777 3.3 3.3 0 0 0 17.007 19.431L11.772 17.935 10.963 20.775A1 1 0 0 1 9.758 21.47L5.758 20.47A1 1 0 0 1 5 19.5V8.377A.5.5 0 0 1 5.362 7.897L17.008 4.567A3.3 3.3 0 0 0 18.852 3.223.5.5 0 0 1 19.268 3zM7 18.72 9.304 19.295 9.849 17.385 7 16.57z"></path>' +
+    '<path d="M3 8A.5.5 0 0 1 3.5 8.5V15.5A.5.5 0 0 1 3 16H1.5A.5.5 0 0 1 1 15.5V8.5A.5.5 0 0 1 1.5 8z"></path></svg>';
+
+  function iconEl(size) {
+    const span = document.createElement("span");
+    span.className = "brandicon";
+    span.style.width = size + "px";
+    span.style.height = size + "px";
+    span.innerHTML = ICON_SVG;
+    return span;
+  }
+
   const CSS = `
 :host { all: initial; }
 * { box-sizing: border-box; font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 .wrap { position: fixed; bottom: 18px; right: 18px; z-index: 2147483600; }
-.bubble { width: 48px; height: 48px; border-radius: 50%; background: #f1641e; color: #fff; border: none;
-  font-size: 20px; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.25); display:flex; align-items:center; justify-content:center; }
+.brandicon { display: inline-flex; color: #f1641e; }
+.brandicon svg { width: 100%; height: 100%; }
+.bubble { width: 48px; height: 48px; border-radius: 50%; background: #fff; border: 2px solid #f1641e;
+  cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.25); display:flex; align-items:center; justify-content:center; padding: 0; }
 .panel { width: 360px; max-height: 560px; background: #fff; border-radius: 12px;
   box-shadow: 0 6px 24px rgba(0,0,0,.22); border: 1px solid #e5e5e5; display: flex; flex-direction: column; overflow: hidden; }
 .hdr { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid #eee; }
-.hdr .logo { width: 18px; height: 18px; border-radius: 4px; background: #f1641e; color:#fff; font-size: 11px;
-  display:flex; align-items:center; justify-content:center; font-weight: 700; }
 .hdr .title { font-weight: 600; font-size: 14px; color: #222; flex: 1; }
 .hdr button { background: none; border: none; cursor: pointer; font-size: 15px; color: #888; padding: 2px 6px; }
 .hdr button:hover { color: #222; }
@@ -212,7 +227,9 @@ label.field { display: block; margin-bottom: 8px; font-size: 12px; color: #555; 
     if (!wrap) return;
 
     if (state.collapsed) {
-      wrap.replaceChildren(h("button", { class: "bubble", title: "Etsy Ads Keyword Manager", onclick: toggleCollapsed }, "⌁"));
+      const bubble = h("button", { class: "bubble", title: "Etsy Ads Keyword Manager", onclick: toggleCollapsed });
+      bubble.append(iconEl(26));
+      wrap.replaceChildren(bubble);
       return;
     }
 
@@ -223,7 +240,7 @@ label.field { display: block; margin-bottom: 8px; font-size: 12px; color: #555; 
       h(
         "div",
         { class: "hdr" },
-        h("div", { class: "logo" }, "KM"),
+        iconEl(20),
         h("div", { class: "title" }, "Ads Keyword Manager"),
         h("button", { title: "Collapse", onclick: toggleCollapsed }, "—")
       ),
@@ -462,12 +479,35 @@ label.field { display: block; margin-bottom: 8px; font-size: 12px; color: #555; 
       h(
         "label",
         { class: "field" },
-        "Import ai_results.json",
+        "Import ai_results.json (file)",
         h("input", {
           type: "file",
           accept: ".json,application/json",
           onchange: (ev) => importAiFile(ev.target.files[0]),
         })
+      ),
+      h(
+        "label",
+        { class: "field" },
+        "…or paste the AI's JSON answer here",
+        h("textarea", { id: "aiPasteBox", placeholder: '{ "schema_version": 1, "listing_id": "…", "results": [...] }', rows: "4" })
+      ),
+      h(
+        "button",
+        {
+          class: "btn",
+          id: "aiPasteImport",
+          onclick: async () => {
+            const box = shadow.querySelector("#aiPasteBox");
+            const text = box ? box.value.trim() : "";
+            if (!text) {
+              setFlash("warn", "Paste the AI's JSON into the box first.");
+              return;
+            }
+            await importAiText(text);
+          },
+        },
+        "Import pasted JSON"
       ),
       h("div", { class: "muted row" }, "Product profile (embedded into the export so the AI knows the product):"),
       profileField("Product type", "product_type"),
@@ -491,9 +531,22 @@ label.field { display: block; margin-bottom: 8px; font-size: 12px; color: #555; 
 
   async function importAiFile(file) {
     if (!file) return;
+    await importAiText(await file.text());
+  }
+
+  /** Strip accidental markdown fences the AI may wrap around the JSON. */
+  function stripJsonFences(text) {
+    return String(text).replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "");
+  }
+
+  async function importAiText(rawText) {
     const listingId = state.listingId;
     const snapshot = await sGet(KEYS.snapshot(listingId));
-    const text = await file.text();
+    if (!snapshot || !snapshot.keywords || !snapshot.keywords.length) {
+      setFlash("error", "No snapshot for this listing — run Export first.");
+      return;
+    }
+    const text = stripJsonFences(rawText);
     const validation = E.schemas.validateAiResults(text, listingId);
     if (!validation.ok) {
       setFlash("error", "Import rejected:\n• " + validation.errors.join("\n• "));
@@ -539,11 +592,12 @@ label.field { display: block; margin-bottom: 8px; font-size: 12px; color: #555; 
       detail: { results: validation.results.length, matched: match.matched.length, unmatched: match.unmatched_in_ai.length },
     });
     const coerced = validation.results.filter((r) => r.coerced).length;
+    switchTab("Preview");
     setFlash(
       "ok",
       `Imported: ${match.matched.length} matched, ${match.unmatched_in_ai.length} unmatched` +
         (coerced ? `, ${coerced} unknown classifications coerced to REVIEW` : "") +
-        ". Open Preview."
+        "."
     );
   }
 
