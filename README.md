@@ -68,7 +68,7 @@ capture: DevTools → copy `outerHTML` of the rendered keywords-table section
 
 ```bash
 npm install        # jsdom for tests only
-npm test           # node --test, 47 tests
+npm test           # node --test, 80 tests
 ```
 
 Layout (per spec): `src/shared/*` pure logic (UMD, also `require()`-able from
@@ -82,3 +82,10 @@ The full implementation specification is in `SPEC.md`.
 See SPEC §36 — covers logged-out detection, partial exports + resume,
 wrong-listing imports, dry-run immutability, sacrificial disables, abort,
 stale-snapshot warning, simulated captcha and mid-job extension reloads.
+
+## Community
+
+More tools and tips for Etsy / print-on-demand sellers in the Telegram
+channel: **[t.me/PODEtsy](https://t.me/PODEtsy)**
+
+Built end-to-end with Claude Fable 5. Not affiliated with or endorsed by Etsy.
