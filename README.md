@@ -83,6 +83,12 @@ See SPEC §36 — covers logged-out detection, partial exports + resume,
 wrong-listing imports, dry-run immutability, sacrificial disables, abort,
 stale-snapshot warning, simulated captcha and mid-job extension reloads.
 
+## Related tools
+
+- **[Etsy Reply Assistant](docs/etsy-reply-assistant.md)** — a companion Chrome
+  plugin that drafts replies to Etsy customer messages in the shop's voice via
+  the Anthropic API.
+
 ## Community
 
 More tools and tips for Etsy / print-on-demand sellers in the Telegram
